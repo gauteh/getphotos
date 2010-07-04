@@ -2,4 +2,5 @@ out/
 .scons*
 *.swp*
 *.o
+getphotos
 
