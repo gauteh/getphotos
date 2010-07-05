@@ -3,8 +3,10 @@
 # include <stdlib.h>
 # include <stdio.h>
 # include <sys/stat.h>
+# include <stdint.h>
 
 # include "dataobjects.h"
+# include "image.h"
 
 using namespace std;
 
@@ -12,7 +14,6 @@ using namespace std;
 
 void read_mhod (Mhod *, FILE *);
 void load_image (char *image, string inputfile, int offset, int size);
-void write_image (char * image, string outputfile, int size);
 
 int main (int argc, char *argv[]) {
   cout << "getphotos " << VERSION << endl;
@@ -114,26 +115,33 @@ int main (int argc, char *argv[]) {
       currenteoffset += current->children[i].imagename.headerlength;
       fseek (photodb, currenteoffset, SEEK_SET);
 
+      /*
+      cout << "dimensions[" << i << "]: " << current->children[i].imagename.imagewidth << "x" << current->children[i].imagename.imageheight
+           << " (" << current->children[i].imagename.imagesize << ")" << endl;
+      */
+
       // read mhod name
       read_mhod (&(current->children[i].name), photodb);
       currenteoffset += current->children[i].name.totallength;
       fseek (photodb, currenteoffset, SEEK_SET);
     }
-    //cout << " done." << endl;
     current++;
   }
 
+  // Copying image
   current = items;
 
-  for (int i = 0; i < mhli.imagecount; i++) {
-    cout << "Copying image " << (i + 1) << " of " << mhli.imagecount << "..";
+  //for (int i = 0; i < mhli.imagecount; i++) {
+  for (int i = 0; i < 1; i++) {
+    cout << "Copying image " << (i + 1) << " of " << mhli.imagecount << ".." << endl;
 
     // copying each children
     for (int j = 0; j < current->image.childrencount; j++) {
+
       string name = string (current->children[j].name.name);
       for (int r = 0; r < name.length(); r++)
         if (name[r] == ':') name[r] = '/';
-      name = photodb_u + name;
+      name = datadir + name;
 
       string outfile = outdir;
 
@@ -146,8 +154,9 @@ int main (int argc, char *argv[]) {
         outfile = outfile + "/";
       } else {
         int size = current->children[j].imagename.imagesize;
-        char image[size];
-        load_image (image, name, current->children[j].imagename.ithmboffset, size);
+
+        char no[9];
+        sprintf (no, "%d", (i + 1)); // image number
 
         /* On an iPod video (5G) there are 4 different thumbnails type:
          *    http://www.ipodlinux.org/wiki/ITunesDB/Photo_Database
@@ -158,34 +167,155 @@ int main (int argc, char *argv[]) {
          *    50x41 byte swapped RGB565 - used on the iPod when listing and during slideshow - 4100 bytes each single thumbnail
          */
 
-        switch (current->children[j].imagename.imagewidth) {
-          case 720: outfile = outfile + "/big";
-                    break;
-          case 320: outfile = outfile + "/medium";
-                    break;
-          case 130: outfile = outfile + "/small";
-                    break;
-          case 50:  outfile = outfile + "/smallest";
-                    break;
-          default:  cerr << "unknown dimensions: " << current->children[j].imagename.imagewidth << endl;
-                    exit (1);
+        switch (j) {
+          case 0: 
+                {
+                    char image[size];
+                    int offset = current->children[j].imagename.ithmboffset;
+                    cout << "Reading from: " << name << endl <<
+                            "offset=" << offset << endl <<
+                            "size=" << size << endl;
+                    ifstream in (name.c_str(), ios::in | ios::binary | ios::ate);
+                    in.seekg (offset, ios::beg);
+                    in.read (image, size);
+                    in.close ();
+
+                    // rgb 888, 3 x 1 byte
+                    int bmpsize = 720 * 480 * 3;
+
+                    outfile = outfile + "/big";
+                    mkdir (outfile.c_str(), 0755);
+                    outfile = outfile + "/" + no + ".bmp";
+
+                    string sourcef = outfile + ".source";
+                    ofstream source (sourcef.c_str(), ios::binary | ios::trunc);
+                    source.write (image, size);
+                    source.close ();
+
+                    ofstream output (outfile.c_str(), ios::binary | ios::trunc);
+                    bmpfile_magic magic;
+                    magic.magic[0] = 'B';
+                    magic.magic[1] = 'M';
+
+                    bmpfile_header header;
+                    header.filesz = BMP_TOTAL_HEADER_SIZE + size;
+                    header.creator1 = 0;
+                    header.creator2 = 0;
+                    header.bmp_offset = 40;
+
+                    bmp_dib_v3_header_t dib;
+                    dib.header_sz = DIB_HEADER_SIZE;
+                    dib.width = 720;  // current->children[j].imagename.imagewidth;
+                    dib.height = 480; // current->children[j].imagename.imageheight;
+                    dib.nplanes = 1;
+                    dib.bitspp = 24; // RGB888
+                    dib.compress_type = BMP_COMPRESS_TYPE;
+                    dib.bmp_bytesz = bmpsize; 
+
+                    dib.hres = 2835;
+                    dib.vres = 2835;
+                    dib.ncolors = 0;
+                    dib.nimpcolors = 0;
+
+                    // convert to rgb888
+                    // from uyvy
+                    char rgb[bmpsize];
+
+                    for (int p = 0; p < size; p = p + 4) {
+                      char u  = image[p];
+                      char y1 = image[p + 1];
+                      char v  = image[p + 2];
+                      char y2 = image[p + 3];
+
+                      char C = y1 - 16;
+                      char D = u - 128;
+                      char E = v - 128;
+
+                      rgb[(p / 4 * 6)] = (298 * C + 409 * E + 128) >> 8;
+                      rgb[(p / 4 * 6) + 1] = (298 * C - 100 * D - 208 * E + 128) >> 8;
+                      rgb[(p / 4 * 6) + 2] = (298 * C + 516 * D + 128) >> 8;
+
+
+                      C = y2 - 16;
+
+                      rgb[(p / 4 * 6) + 3] = (298 * C + 409 * E + 128) >> 8;
+                      rgb[(p / 4 * 6) + 4] = (298 * C - 100 * D - 208 * E + 128) >> 8;
+                      rgb[(p / 4 * 6) + 5] = (298 * C + 516 * D + 128) >> 8;
+                    }
+
+                    output.write (reinterpret_cast<char*> (&magic), sizeof (magic));
+                    output.write (reinterpret_cast<char*> (&header), sizeof (header));
+                    output.write (reinterpret_cast<char*> (&dib), sizeof (dib));
+                    output.write (rgb, bmpsize);
+
+                    output.close ();
+                }
+                break;
+
+          case 1:
+                {
+                    char image[size];
+                    int offset = current->children[j].imagename.ithmboffset;
+                    cout << "Reading from: " << name << endl <<
+                            "offset=" << offset << endl <<
+                            "size=" << size << endl;
+                    ifstream in (name.c_str(), ios::in | ios::binary | ios::ate);
+                    in.seekg (offset, ios::beg);
+                    in.read (image, size);
+                    in.close ();
+
+                    outfile = outfile + "/medium";
+                    mkdir (outfile.c_str(), 0755);
+                    outfile = outfile + "/" + no + ".bmp";
+
+                    string sourcef = outfile + ".source";
+                    ofstream source (sourcef.c_str(), ios::binary | ios::trunc);
+                    source.write (image, size);
+                    source.close ();
+
+                    ofstream output (outfile.c_str(), ios::binary | ios::trunc);
+                    bmpfile_magic magic;
+                    magic.magic[0] = 'B';
+                    magic.magic[1] = 'M';
+
+                    bmpfile_header header;
+                    header.filesz = BMP_TOTAL_HEADER_SIZE + size;
+                    header.creator1 = 0;
+                    header.creator2 = 0;
+                    header.bmp_offset = 40;
+
+                    bmp_dib_v3_header_t dib;
+                    dib.header_sz = DIB_HEADER_SIZE;
+                    dib.width = 320;  // current->children[j].imagename.imagewidth;
+                    dib.height = 240; // current->children[j].imagename.imageheight;
+                    dib.nplanes = 1;
+                    dib.bitspp = 16; // RGB565
+                    dib.compress_type = BMP_COMPRESS_TYPE;
+                    dib.bmp_bytesz = size; 
+
+                    dib.hres = 2835;
+                    dib.vres = 2835;
+                    dib.ncolors = 0;
+                    dib.nimpcolors = 0;
+
+                    output.write (reinterpret_cast<char*> (&magic), sizeof (magic));
+                    output.write (reinterpret_cast<char*> (&header), sizeof (header));
+                    output.write (reinterpret_cast<char*> (&dib), sizeof (dib));
+                    // backwards..
+                    for (int p = 0; p < size; p++)
+                      output << image[size - p];
+
+                    output.close ();
+                }
+                break;
+
+          //default:  cerr << "unknown dimensions: " << current->children[j].imagename.imagewidth << endl;
+                    //exit (1);
         }
-
-        mkdir (outfile.c_str(), 0755);
-
-        char buf[9];
-        sprintf (buf, "%d", (i + 1));
-        outfile = outfile + "/" + buf;
-        write_image (image, outfile, size);
       }
-
-
     }
-
-
-    cout << " done." << endl;
+    current++;
   }
-
 
   fclose (photodb);
   return 0;
@@ -215,13 +345,9 @@ void read_mhod (Mhod * mhod, FILE *photodb) {
 
 void load_image (char *image, string inputfile, int offset, int size) {
   ifstream input (inputfile.c_str(), ifstream::binary);
+  cout << "loading from: " << inputfile << ", offset=" << offset << ", size=" << size << endl;
   input.seekg (offset, ios::beg);
   input.read (image, size);
   input.close ();
 }
 
-void write_image (char * image, string outputfile, int size) {
-  ofstream output (outputfile.c_str(), ios::binary | ios::trunc);
-  output.write (image, size);
-  output.close ();
-}
