@@ -6,7 +6,7 @@
 # include <stdint.h>
 
 # include "dataobjects.h"
-# include "image.h"
+# include "bmp.h"
 
 using namespace std;
 
@@ -46,6 +46,10 @@ int main (int argc, char *argv[]) {
     cerr << "Output not a directory." << endl;
     exit (1);
   }
+
+  // make sourcedir
+  string sourcedir = outdir + "/source/";
+  mkdir (sourcedir.c_str(), 07555);
 
 
   FILE *photodb = fopen (photodb_u.c_str (), "rb");
@@ -155,6 +159,7 @@ int main (int argc, char *argv[]) {
         outfile = outfile + "/";
       } else {
         int size = current->children[j].imagename.imagesize;
+        int offset = current->children[j].imagename.ithmboffset;
 
         char no[9];
         sprintf (no, "%d", (i + 1)); // image number
@@ -169,29 +174,25 @@ int main (int argc, char *argv[]) {
          */
 
         switch (j) {
-          case 0: 
+          case 0:
                 {
                     char image[size];
-                    int offset = current->children[j].imagename.ithmboffset;
-                    cout << "Reading from: " << name << endl <<
-                            "offset=" << offset << endl <<
-                            "size=" << size << endl;
-                    ifstream in (name.c_str(), ios::in | ios::binary | ios::ate);
-                    in.seekg (offset, ios::beg);
-                    in.read (image, size);
-                    in.close ();
+                    load_image (image, name, offset , size);
+                    
+                    string sourcef = sourcedir + "big";
+                    mkdir (sourcef.c_str(), 0755);
+                    sourcef = sourcef + "/" + no + ".yuv420";
+                    ofstream source (sourcef.c_str(), ios::binary | ios::trunc);
+                    source.write (image, size);
+                    source.close ();
 
                     // rgb 888, 3 x 1 byte
-                    int bmpsize = size / 4 * 2 * 3; 
+                    int bmpsize = size / 4 * 2 * 3;
 
                     outfile = outfile + "/big";
                     mkdir (outfile.c_str(), 0755);
                     outfile = outfile + "/" + no + ".bmp";
 
-                    string sourcef = outfile + ".source";
-                    ofstream source (sourcef.c_str(), ios::binary | ios::trunc);
-                    source.write (image, size);
-                    source.close ();
 
                     ofstream output (outfile.c_str(), ios::binary | ios::trunc);
                     bmpfile_magic magic;
@@ -211,7 +212,7 @@ int main (int argc, char *argv[]) {
                     dib.nplanes = 1;
                     dib.bitspp = 24; // RGB888
                     dib.compress_type = BMP_COMPRESS_TYPE;
-                    dib.bmp_bytesz = bmpsize; 
+                    dib.bmp_bytesz = bmpsize;
 
                     dib.hres = 2835;
                     dib.vres = 2835;
@@ -229,7 +230,7 @@ int main (int argc, char *argv[]) {
                       char y1 =  image[p + 1];
                       char v  =  image[p + 2];
                       char y2 =  image[p + 3];
-                      
+
                       //int y1  = (int) image[p];
                       //int u = (int) image[p + 1];
                       //int y2  = (int) image[p + 2];
@@ -252,6 +253,7 @@ int main (int argc, char *argv[]) {
                 break;
 
           case 1:
+                /* {{{ - rgb565 / medium not working
                 {
                     char image[size];
                     int offset = current->children[j].imagename.ithmboffset;
@@ -291,7 +293,7 @@ int main (int argc, char *argv[]) {
                     dib.bitspp = 16; // RGB565, 24 = RGB888
 
                     dib.compress_type = BMP_COMPRESS_TYPE;
-                    dib.bmp_bytesz = size; 
+                    dib.bmp_bytesz = size;
 
                     dib.hres = 2835;
                     dib.vres = 2835;
@@ -323,8 +325,10 @@ int main (int argc, char *argv[]) {
 
                     output.close ();
                 }
+                }}} */
                 break;
 
+          default: break;
           //default:  cerr << "unknown dimensions: " << current->children[j].imagename.imagewidth << endl;
                     //exit (1);
         }
@@ -361,7 +365,11 @@ void read_mhod (Mhod * mhod, FILE *photodb) {
 
 void load_image (char *image, string inputfile, int offset, int size) {
   ifstream input (inputfile.c_str(), ifstream::binary);
-  cout << "loading from: " << inputfile << ", offset=" << offset << ", size=" << size << endl;
+  //cout << "loading from: " << inputfile << ", offset=" << offset << ", size=" << size << endl;
+  if (!input.is_open ()) {
+      cout << "Could not open file: " << inputfile << " for reading!" << endl;
+      exit (1);
+  }
   input.seekg (offset, ios::beg);
   input.read (image, size);
   input.close ();
