@@ -135,9 +135,6 @@ int main (int argc, char *argv[]) {
 
   fclose (photodb);
 
-  // Copying image
-  current = items;
-
   //for (int i = 0; i < mhli.imagecount; i++) {
   for (int i = 0; i < 5; i++) {
     cout << "Copying image " << (i + 1) << " of " << mhli.imagecount << ".." << endl;
@@ -146,23 +143,22 @@ int main (int argc, char *argv[]) {
     sprintf (no, "%d", (i + 1)); // image number
 
     // copying each children
-    cout << "c: "  <<current->image.childrencount<<endl;
-    for (int j = 0; j < current->image.childrencount; j++) {
+    for (int j = 0; j < items[i].image.childrencount; j++) {
 
-      string name = string (current->children[j].name.name);
+      string name = string (items[i].children[j].name.name);
       for (int r = 0; r < name.length(); r++)
         if (name[r] == ':') name[r] = '/';
       name = datadir + name;
 
       string outfile = outdir;
 
-      if (current->children[j].header.type == 5) {
+      if (items[i].children[j].header.type == 5) {
         // full res. 
         cout << "Full resolution images found; check the Photos/Full resolution folder on your iPod." << endl;
         //exit (1);
       } else {
-        int size = current->children[j].imagename.imagesize;
-        int offset = current->children[j].imagename.ithmboffset;
+        int size = items[i].children[j].imagename.imagesize;
+        int offset = items[i].children[j].imagename.ithmboffset;
 
 
         /* On an iPod video (5G) there are 4 different thumbnails type:
@@ -191,13 +187,12 @@ int main (int argc, char *argv[]) {
                     outfile = outfile + "/big";
                     mkdir (outfile.c_str(), 0755);
                     outfile = outfile + "/" + no + ".bmp";
-                    cout << "out:" << outfile << endl;
 
-                    YUV420 yuv (image, 720, 480, size, outfile);
-                    yuv.write_bmp_header ();
-                    yuv.load_yuv ();
-                    yuv.ycbcr2rgb();
-                    yuv.write_rgb();
+                    //YUV420 yuv (image, 720, 480, size, outfile);
+                    //yuv.write_bmp_header ();
+                    //yuv.load_yuv ();
+                    //yuv.ycbcr2rgb();
+                    //yuv.write_rgb();
                 }
                 break;
 
@@ -206,7 +201,6 @@ int main (int argc, char *argv[]) {
         }
       }
     }
-    current++;
   }
 
   return 0;
