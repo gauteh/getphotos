@@ -7,6 +7,7 @@
 
 # include "dataobjects.h"
 # include "bmp.h"
+# include "yuv420.h"
 
 using namespace std;
 
@@ -14,16 +15,15 @@ using namespace std;
 
 void read_mhod (Mhod *, FILE *);
 void load_image (char *image, string inputfile, int offset, int size);
-void YUV444toRGB888 (char *dst, char y, char u, char v);
 
 int main (int argc, char *argv[]) {
-  cout << "getphotos " << VERSION << endl;
+  cout << "GetPhotos " << VERSION << endl;
+  cout << "Warning: All existing photos in output directory will be deleted!" << endl;
 
   if (argc < 3) {
     cerr << "Usage: " << argv[0] << " [iPod photo directory] [output directory]" << endl;
     exit (1);
   }
-
 
   string datadir = string (argv[1]);
   string photodb_u = datadir + "/Photo Database";
@@ -49,7 +49,7 @@ int main (int argc, char *argv[]) {
 
   // make sourcedir
   string sourcedir = outdir + "/source/";
-  mkdir (sourcedir.c_str(), 07555);
+  mkdir (sourcedir.c_str(), 0755);
 
 
   FILE *photodb = fopen (photodb_u.c_str (), "rb");
@@ -133,6 +133,8 @@ int main (int argc, char *argv[]) {
     current++;
   }
 
+  fclose (photodb);
+
   // Copying image
   current = items;
 
@@ -140,7 +142,11 @@ int main (int argc, char *argv[]) {
   for (int i = 0; i < 5; i++) {
     cout << "Copying image " << (i + 1) << " of " << mhli.imagecount << ".." << endl;
 
+    char no[9];
+    sprintf (no, "%d", (i + 1)); // image number
+
     // copying each children
+    cout << "c: "  <<current->image.childrencount<<endl;
     for (int j = 0; j < current->image.childrencount; j++) {
 
       string name = string (current->children[j].name.name);
@@ -151,21 +157,17 @@ int main (int argc, char *argv[]) {
       string outfile = outdir;
 
       if (current->children[j].header.type == 5) {
-        // full screen
-        // doesn work at the moment
-        exit (1);
-        outfile = outfile + "/full";
-        mkdir (outfile.c_str(), 0755);
-        outfile = outfile + "/";
+        // full res. 
+        cout << "Full resolution images found; check the Photos/Full resolution folder on your iPod." << endl;
+        //exit (1);
       } else {
         int size = current->children[j].imagename.imagesize;
         int offset = current->children[j].imagename.ithmboffset;
 
-        char no[9];
-        sprintf (no, "%d", (i + 1)); // image number
 
         /* On an iPod video (5G) there are 4 different thumbnails type:
          *    http://www.ipodlinux.org/wiki/ITunesDB/Photo_Database
+         *    This seems to be YUV 4:2:0..
          *    720x480 interlaced UYVY (YUV 4:2:2) - used for TV output - 691200 bytes each single thumbnail
          *    320x240 byte swapped RGB565 - used for fullscreen on the iPod - 153600 bytes each single thumbnail
          *    130x88 byte swapped RGB565 - used on the iPod during slideshow, when current photo is displayed on TV - 22880 bytes
@@ -178,7 +180,7 @@ int main (int argc, char *argv[]) {
                 {
                     char image[size];
                     load_image (image, name, offset , size);
-                    
+
                     string sourcef = sourcedir + "big";
                     mkdir (sourcef.c_str(), 0755);
                     sourcef = sourcef + "/" + no + ".yuv420";
@@ -186,163 +188,31 @@ int main (int argc, char *argv[]) {
                     source.write (image, size);
                     source.close ();
 
-                    // rgb 888, 3 x 1 byte
-                    int bmpsize = size / 4 * 2 * 3;
-
                     outfile = outfile + "/big";
                     mkdir (outfile.c_str(), 0755);
                     outfile = outfile + "/" + no + ".bmp";
+                    cout << "out:" << outfile << endl;
 
-
-                    ofstream output (outfile.c_str(), ios::binary | ios::trunc);
-                    bmpfile_magic magic;
-                    magic.magic[0] = 'B';
-                    magic.magic[1] = 'M';
-
-                    bmpfile_header header;
-                    header.filesz = BMP_TOTAL_HEADER_SIZE + size;
-                    header.creator1 = 0;
-                    header.creator2 = 0;
-                    header.bmp_offset = 40;
-
-                    bmp_dib_v3_header_t dib;
-                    dib.header_sz = DIB_HEADER_SIZE;
-                    dib.width = 720;  // current->children[j].imagename.imagewidth;
-                    dib.height = 480; // current->children[j].imagename.imageheight;
-                    dib.nplanes = 1;
-                    dib.bitspp = 24; // RGB888
-                    dib.compress_type = BMP_COMPRESS_TYPE;
-                    dib.bmp_bytesz = bmpsize;
-
-                    dib.hres = 2835;
-                    dib.vres = 2835;
-                    dib.ncolors = 0;
-                    dib.nimpcolors = 0;
-
-                    // convert to rgb888
-                    // from uyvy
-                    char rgb[bmpsize];
-
-                    // yuyv
-                    // uyvy
-                    for (int p = 0; p < size; p = p + 4) {
-                      char u  =  image[p];
-                      char y1 =  image[p + 1];
-                      char v  =  image[p + 2];
-                      char y2 =  image[p + 3];
-
-                      //int y1  = (int) image[p];
-                      //int u = (int) image[p + 1];
-                      //int y2  = (int) image[p + 2];
-                      //int v  = (int) image[p + 3];
-
-                      YUV444toRGB888 (&(rgb[p / 4 * 6]), y1, u, v);
-                      YUV444toRGB888 (&(rgb[p / 4 * 6 + 3]), y2, u, v);
-                    }
-
-                    output.write (reinterpret_cast<char*> (&magic), sizeof (magic));
-                    output.write (reinterpret_cast<char*> (&header), sizeof (header));
-                    output.write (reinterpret_cast<char*> (&dib), sizeof (dib));
-
-                    // backwards
-                    for (int p = 0; p < bmpsize; p++)
-                      output << rgb[bmpsize - p];
-
-                    output.close ();
+                    YUV420 yuv (image, 720, 480, size, outfile);
+                    yuv.write_bmp_header ();
+                    yuv.load_yuv ();
+                    yuv.ycbcr2rgb();
+                    yuv.write_rgb();
                 }
                 break;
 
-          case 1:
-                /* {{{ - rgb565 / medium not working
-                {
-                    char image[size];
-                    int offset = current->children[j].imagename.ithmboffset;
-                    cout << "Reading from: " << name << endl <<
-                            "offset=" << offset << endl <<
-                            "size=" << size << endl;
-                    ifstream in (name.c_str(), ios::in | ios::binary | ios::ate);
-                    in.seekg (offset, ios::beg);
-                    in.read (image, size);
-                    in.close ();
-
-                    outfile = outfile + "/medium";
-                    mkdir (outfile.c_str(), 0755);
-                    outfile = outfile + "/" + no + ".bmp";
-
-                    string sourcef = outfile + ".source";
-                    ofstream source (sourcef.c_str(), ios::binary | ios::trunc);
-                    source.write (image, size);
-                    source.close ();
-
-                    ofstream output (outfile.c_str(), ios::binary | ios::trunc);
-                    bmpfile_magic magic;
-                    magic.magic[0] = 'B';
-                    magic.magic[1] = 'M';
-
-                    bmpfile_header header;
-                    header.filesz = BMP_TOTAL_HEADER_SIZE + size;
-                    header.creator1 = 0;
-                    header.creator2 = 0;
-                    header.bmp_offset = 40;
-
-                    bmp_dib_v3_header_t dib;
-                    dib.header_sz = DIB_HEADER_SIZE;
-                    dib.width = 320;  // current->children[j].imagename.imagewidth;
-                    dib.height = 240; // current->children[j].imagename.imageheight;
-                    dib.nplanes = 1;
-                    dib.bitspp = 16; // RGB565, 24 = RGB888
-
-                    dib.compress_type = BMP_COMPRESS_TYPE;
-                    dib.bmp_bytesz = size;
-
-                    dib.hres = 2835;
-                    dib.vres = 2835;
-                    dib.ncolors = 0;
-                    dib.nimpcolors = 0;
-
-                    output.write (reinterpret_cast<char*> (&magic), sizeof (magic));
-                    output.write (reinterpret_cast<char*> (&header), sizeof (header));
-                    output.write (reinterpret_cast<char*> (&dib), sizeof (dib));
-
-                    // converting to rgb888
-                    //char rgb[bmpsize];
-                    //int r = 0;
-                    //for (int p = 0; p < size; p += 2) {
-                      //uint16_t *s = &(image[2*p]);
-                      //rgb[r] = (*s) &
-                    //}
-
-                    // swap bytes
-                    //for (int p = 0; p < size; p = p + 2) {
-                      //char tmp = image[p];
-                      //image[p] = image[p + 1];
-                      //image[p + 1] = tmp;
-                    //}
-
-                    // backwards..
-                    for (int p = 0; p < size; p++)
-                      output << image[size - p];
-
-                    output.close ();
-                }
-                }}} */
-                break;
-
+          case 1: break; // rgb565
           default: break;
-          //default:  cerr << "unknown dimensions: " << current->children[j].imagename.imagewidth << endl;
-                    //exit (1);
         }
       }
     }
     current++;
   }
 
-  fclose (photodb);
   return 0;
 }
 
 # define MHOD_INITIAL_LENGTH 0x18
-// reads an mhod
 void read_mhod (Mhod * mhod, FILE *photodb) {
   fread (mhod, MHOD_INITIAL_LENGTH, 1, photodb);
   if (mhod->type == 3) {
@@ -351,9 +221,9 @@ void read_mhod (Mhod * mhod, FILE *photodb) {
 
     mhod->name = new char[mhod->stringsize + 1];
 
+    // probably wchar, we don't want that..
     for (int j = 0; j < mhod->stringsize; j++) {
-      char t;
-      t = fgetc (photodb);
+      char t = fgetc (photodb);
       if (j % 2) mhod->name[j / 2] = t;
     }
 
@@ -375,20 +245,3 @@ void load_image (char *image, string inputfile, int offset, int size) {
   input.close ();
 }
 
-void YUV444toRGB888 (char *dst, char y, char u, char v) {
-  char C = y - 16;
-  char D = u - 128;
-  char E = v - 128;
-
-  unsigned int r, g, b;
-
-  r = (298 * C +           409 * E + 128) >> 8;
-  g = (298 * C - 100 * D - 208 * E + 128) >> 8;
-  b = (298 * C + 516 * D           + 128) >> 8;
-  //if (r > 255) r = 255;
-  //if (g > 255) g = 255;
-  //if (b > 255) b = 255;
-  dst[0] = (char) r;
-  dst[1] = (char) g;
-  dst[2] = (char) b;
-}
