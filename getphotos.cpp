@@ -135,8 +135,8 @@ int main (int argc, char *argv[]) {
 
   fclose (photodb);
 
-  for (int i = 0; i < mhli.imagecount; i++) {
-  //for (int i = 0; i < 5; i++) {
+  //for (int i = 0; i < mhli.imagecount; i++) {
+  for (int i = 0; i < 5; i++) {
     cout << "Copying image " << (i + 1) << " of " << mhli.imagecount << ".." << endl;
 
     char no[9];
@@ -184,15 +184,13 @@ int main (int argc, char *argv[]) {
                     source.write (image, size);
                     source.close ();
 
-                    //outfile = outfile + "/big";
-                    //mkdir (outfile.c_str(), 0755);
-                    //outfile = outfile + "/" + no + ".bmp";
+                    outfile = outfile + "/big";
+                    mkdir (outfile.c_str(), 0755);
+                    outfile = outfile + "/" + no + ".bmp";
 
-                    //YUV420 yuv (image, 720, 480, size, outfile);
-                    //yuv.write_bmp_header ();
-                    //yuv.load_yuv ();
-                    //yuv.ycbcr2rgb();
-                    //yuv.write_rgb();
+                    YUV420 yuv (image, 720, 480, size, outfile);
+                    yuv.load ();
+                    yuv.write ();
                 }
                 break;
 

@@ -1,8 +1,11 @@
 # pragma once
 
+# include <boost/numeric/ublas/matrix.hpp>
+# include <boost/numeric/ublas/io.hpp>
 # include "bmp.h"
 
 using namespace std;
+using namespace boost::numeric::ublas;
 
 class YUV420 {
   private:
@@ -11,9 +14,9 @@ class YUV420 {
     int height; // 480
     int size;
     int bmpsize;
-    char *Y;
-    char *U;
-    char *V;
+    matrix <char> Y;
+    matrix <char> U;
+    matrix <char> V;
     char *RGB;
 
     ofstream out;
@@ -33,133 +36,78 @@ class YUV420 {
       out.close ();
     }
 
-    void write_bmp_header () {
-        bmpfile_magic magic;
-        magic.magic[0] = 'B';
-        magic.magic[1] = 'M';
-
-        bmpfile_header header;
-        header.filesz = BMP_TOTAL_HEADER_SIZE + size;
-        header.creator1 = 0;
-        header.creator2 = 0;
-        header.bmp_offset = 40;
-
-        bmp_dib_v3_header_t dib;
-        dib.header_sz = DIB_HEADER_SIZE;
-        dib.width = width;  // current->children[j].imagename.imagewidth;
-        dib.height = height; // current->children[j].imagename.imageheight;
-        dib.nplanes = 1;
-        dib.bitspp = 24; // RGB888
-        dib.compress_type = BMP_COMPRESS_TYPE;
-        dib.bmp_bytesz = bmpsize;
-
-        dib.hres = 2835;
-        dib.vres = 2835;
-        dib.ncolors = 0;
-        dib.nimpcolors = 0;
-        out.write (reinterpret_cast<char*> (&magic), sizeof (magic));
-        out.write (reinterpret_cast<char*> (&header), sizeof (header));
-        out.write (reinterpret_cast<char*> (&dib), sizeof (dib));
-    }
 
     void load_yuv () {
       // convert yuv420 to YUV444
-      char YMatrixO[width * height]; // char = uint8
-      for (int p = 0; p < (width*height); p++) YMatrixO[p] = source[p];
-
-
-      // transpose
-      char YMatrix[width * height];
-      for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
-          YMatrix[j * width + i] = YMatrixO[i * width + j];
-        }
-      }
-
+      matrix <char> Ymatrix (height, width);
+      for (int i = 0; i < Ymatrix.size1 (); i++)
+        for (int j = 0; j < Ymatrix.size2 (); j++)
+          Ymatrix(i, j) = source[i * width + j];
 
       int width_h = width / 2;
       int height_h = height / 2;
 
-      char UMatrixO[width_h * height_h];
-      for (int p = 0; p < width_h * height_h; p++)
-        UMatrixO[p] = source[p + (width * height)];
+      char *ustart = &source[width * height];
       
-      // transpose
-      char UMatrix[width * height];
-      for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
-          UMatrix[j * width + i] = UMatrixO[i * width + j];
+      matrix <char> UmatrixO (height_h, width_h);
+      for (int i = 0; i < UmatrixO.size1 (); i++)
+        for (int j = 0; j < UmatrixO.size2 (); j++)
+          UmatrixO(i, j) = ustart[i * width_h + j];
+
+      char *vstart = &ustart[width_h * height_h];
+
+      matrix <char> VmatrixO (height_h, width_h);
+      for (int i = 0; i < VmatrixO.size1 (); i++)
+        for (int j = 0; j < VmatrixO.size2 (); j++)
+          VmatrixO(i, j) = vstart[i * width_h + j];
+
+      // consider sub-sampling
+      // a better solution might be to take average of surrounding
+      // pixels
+      matrix <char> Umatrix (height, width);
+      for (int i = 0; i < UmatrixO.size1 (); i++) {
+        for (int j = 0; j < UmatrixO.size2 (); j = j + 2) {
+          Umatrix (2*i, 2*j) = UmatrixO (i, j);
+          Umatrix (2*i, 2*j + 1) = UmatrixO (i, j);
+          Umatrix (2*i + 1, 2*j) = UmatrixO (i, j);
+          Umatrix (2*i + 1, 2*j + 1) = UmatrixO (i, j);
         }
       }
 
-      char VMatrixO [width_h * height_h];
-      for (int p = 0; p < (width_h * height_h); p++)
-        VMatrixO[p] = source[p + (width * height) + (width_h * height_h)];
-      // transpose
-      char VMatrix[width * height];
-      for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
-          VMatrix[j * width + i] = VMatrixO[i * width + j];
+      matrix <char> Vmatrix (height, width);
+      for (int i = 0; i < VmatrixO.size1 (); i++) {
+        for (int j = 0; j < VmatrixO.size2 (); j = j + 2) {
+          Vmatrix (2*i, 2*j) = VmatrixO (i, j);
+          Vmatrix (2*i, 2*j + 1) = VmatrixO (i, j);
+          Vmatrix (2*i + 1, 2*j) = VmatrixO (i, j);
+          Vmatrix (2*i + 1, 2*j + 1) = VmatrixO (i, j);
         }
       }
 
-      // fix sub-sampling
-      char UMatrix1 [height_h * width];
-      for (int p = 0; p < height_h * width; p++) UMatrix1[p] = 0;
-
-      for (int p = 0; p < (height_h * width) / 2 ; p++)
-        UMatrix1[2*p] = UMatrix[p];
-
-      for (int p = 0; p < (height_h * width) / 2 - (width / 2); p++)
-        UMatrix1[2*p +1] = UMatrix[p];
-
-      char VMatrix1 [height_h * width];
-      for (int p = 0; p < height_h * width; p++) VMatrix1[p] = 0;
-
-      
-      for (int p = 0; p < (height_h * width) / 2 ; p++)
-        VMatrix1[2*p] = VMatrix[p];
-
-      for (int p = 0; p < (height_h * width) / 2 - (width / 2); p++)
-        VMatrix1[2*p + 1] = VMatrix[p];
-
-      
-      // compose YUV-matrix, 3 dimensions
-      int pixels = height * width;
-      Y = new char[pixels];
-      U = new char[pixels];
-      V = new char[pixels];
-
-      for (int p = 0; p < pixels; p++) Y[p] = YMatrix[p];
-
-
-      // fill even rows
-      for (int p = 0; p < pixels / 2 - width; p++) {
-        int h = p / width;
-        int w = p % width;
-        U[2*h*width + w] = UMatrix1[p];
-        U[(2*h+1)*width + w] = UMatrix1[p];
-      }
-      //
-      // fill even rows
-      for (int p = 0; p < pixels / 2 - width; p++) {
-        int h = p / width;
-        int w = p % width;
-        V[2*h*width + w] = VMatrix1[p];
-        V[(2*h+1)*width + w] = VMatrix1[p];
-      }
+      Y = Ymatrix;
+      U = Umatrix;
+      V = Vmatrix;
 
       string Yf = outfile + ".Y";
       ofstream Yo (Yf.c_str(), ios::binary | ios::trunc);
-      Yo.write (Y, pixels);
+      for (int i = 0; i < Ymatrix.size1 (); i++)
+        for (int j = 0; j < Ymatrix.size2 (); j++)
+          Yo << (char) Ymatrix(i, j);
       Yo.close ();
+
+      
       string Uf = outfile + ".U";
       ofstream Uo (Uf.c_str(), ios::binary | ios::trunc);
-      Uo.write (U, pixels);
+      for (int i = 0; i < Umatrix.size1 (); i++)
+        for (int j = 0; j < Umatrix.size2 (); j++)
+          Uo << (char) Umatrix(i, j);
       Uo.close ();
+
       string Vf = outfile + ".V";
       ofstream Vo (Vf.c_str(), ios::binary | ios::trunc);
-      Vo.write (V, pixels);
+      for (int i = 0; i < Vmatrix.size1 (); i++)
+        for (int j = 0; j < Vmatrix.size2 (); j++)
+          Vo << (char) Vmatrix(i, j);
       Vo.close ();
     }
 
@@ -172,31 +120,33 @@ class YUV420 {
     void ycbcr2rgb () {
       RGB = new char[bmpsize];
 
-      int pixels = height * width;
 
-      for (int p = 0; p < pixels; p++) {
-        long r, g, b;
-        double y, u, v;
-        y = Y[p];
-        u = U[p];
-        v = V[p];
+      for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+          int pixel = i * width + j;
+          long r, g, b;
+          double y, u, v;
+          y = Y(i, j);
+          u = U(i, j);
+          v = V(i, j);
 
-        double C, D, E;
-        C = y - 16;
-        D = u - 128;
-        E = v - 128;
+          double C, D, E;
+          C = y - 16;
+          D = u - 128;
+          E = v - 128;
 
-        r = ( 298.0 * C           + 409.0 * E + 128.0);
-        g = ( 298.0 * C - 100.0 * D - 208.0 * E + 128.0);
-        b = ( 298.0 * C + 516.0 * D           + 128.0);
+          r = ( 298.0 * C           + 409.0 * E + 128.0);
+          g = ( 298.0 * C - 100.0 * D - 208.0 * E + 128.0);
+          b = ( 298.0 * C + 516.0 * D           + 128.0);
 
-        r = r>>8;
-        g = g>>8;
-        b = b>>8;
+          r = r>>8;
+          g = g>>8;
+          b = b>>8;
 
-        RGB[3*p + 0] = clip(r);
-        RGB[3*p + 1] = clip(g);
-        RGB[3*p + 2] = clip(b);
+          RGB[3*pixel + 0] = clip(r);
+          RGB[3*pixel + 1] = clip(g);
+          RGB[3*pixel + 2] = clip(b);
+        }
       }
 
       /*
@@ -208,7 +158,7 @@ class YUV420 {
         u = U[p];
         v = V[p];
 
-        r = (255.0 / 219.0) * (y - 16.0) +                                                         (255.0 / 112.0) * 0.701 * (v - 128.0); 
+        r = (255.0 / 219.0) * (y - 16.0) +                                                         (255.0 / 112.0) * 0.701 * (v - 128.0);
         g = (255.0 / 219.0) * (y - 16.0) - (255.0 / 112.0) * 0.886 * (0.114 / 0.587) * (u - 128) - (255.0 / 112.0) * 0.701 * (0.299 / 0.587) * (v - 128);
         b = (255.0 / 219.0) * (y - 16.0) + (255.0 / 112.0) * 0.886                   * (u - 128);
 
@@ -216,6 +166,16 @@ class YUV420 {
         RGB[p*3 + 1] = (char) g;
         RGB[p*3 + 2] = (char) b;
       } */
+    }
+
+    void write () {
+      write_bmp_header (out, width, height, 3);
+      write_rgb ();
+    }
+
+    void load () {
+      load_yuv ();
+      ycbcr2rgb ();
     }
 
     void write_rgb () {
