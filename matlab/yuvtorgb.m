@@ -44,25 +44,29 @@ function YUV = loadFileYUV(width,heigth,fileName,Teil_h,Teil_b)
   %figure; imshow(VMatrix,[]);
 
   % consideration of the subsampling of U and V
-  UMatrix1(1:heigth_h,1:width) = 0;
-  UMatrix1(1:heigth_h,1:2:end) = UMatrix(:,1:1:end);
-  UMatrix1(1:heigth_h,2:2:end) = UMatrix(:,1:1:end);
+  % UMatrix1(1:heigth_h,1:width) = 0;
+  % UMatrix1(1:heigth_h,1:2:end) = UMatrix(:,1:1:end);
+  % UMatrix1(1:heigth_h,2:2:end) = UMatrix(:,1:1:end);
+  UMatrix1 = imresize (UMatrix, [heigth width]);
 
-  VMatrix1(1:heigth_h,1:width) = 0;
-  VMatrix1(1:heigth_h,1:2:end) = VMatrix(:,1:1:end);
-  VMatrix1(1:heigth_h,2:2:end) = VMatrix(:,1:1:end);
+  %VMatrix1(1:heigth_h,1:width) = 0;
+  %VMatrix1(1:heigth_h,1:2:end) = VMatrix(:,1:1:end);
+  %VMatrix1(1:heigth_h,2:2:end) = VMatrix(:,1:1:end);
+  VMatrix1 = imresize (VMatrix, [heigth width]);
 
 
   % compose the YUV-matrix:
   YUV(1:heigth,1:width,1) = YMatrix;
 
-  YUV(1:heigth,1:width,2) = 0;
-  YUV(1:2:end,:,2) = UMatrix1(:,:);
-  YUV(2:2:end,:,2) = UMatrix1(:,:);
+  %YUV(1:heigth,1:width,2) = 0;
+  %YUV(1:2:end,:,2) = UMatrix1(:,:);
+  %YUV(2:2:end,:,2) = UMatrix1(:,:);
+  YUV(:,:,2) = UMatrix1;
 
-  YUV(1:heigth,1:width,3) = 0;
-  YUV(1:2:end,:,3) = VMatrix1(:,:);
-  YUV(2:2:end,:,3) = VMatrix1(:,:);
+  %YUV(1:heigth,1:width,3) = 0;
+  %YUV(1:2:end,:,3) = VMatrix1(:,:);
+  %YUV(2:2:end,:,3) = VMatrix1(:,:);
+  YUV(:,:,3) = VMatrix1;
 
   YUV = uint8(YUV);
 

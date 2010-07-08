@@ -4,6 +4,7 @@
 # include <stdio.h>
 # include <sys/stat.h>
 # include <stdint.h>
+# include <cstring>
 
 # include "dataobjects.h"
 # include "bmp.h"
@@ -21,8 +22,21 @@ int main (int argc, char *argv[]) {
   cout << "Warning: All existing photos in output directory will be deleted!" << endl;
 
   if (argc < 3) {
-    cerr << "Usage: " << argv[0] << " [iPod photo directory] [output directory]" << endl;
+    cerr << "Usage: " << argv[0] << " [-s] [iPod photo directory] [output directory]" << endl;
+    cerr << "       -s    only extract source" << endl;
     exit (1);
+  }
+
+  int convert = 1;
+  if (argc > 3) {
+    if (!strcmp (argv[1], "-s")) {
+      cout << "Only extracting sources." << endl;
+      convert = 0;
+      argv = &argv[1];
+    } else {
+      cerr << "Unknown argument!" << endl;
+      exit (1);
+    }
   }
 
   string datadir = string (argv[1]);
@@ -135,9 +149,9 @@ int main (int argc, char *argv[]) {
 
   fclose (photodb);
 
-  //for (int i = 0; i < mhli.imagecount; i++) {
-  for (int i = 0; i < 5; i++) {
-    cout << "Copying image " << (i + 1) << " of " << mhli.imagecount << ".." << endl;
+  for (int i = 0; i < mhli.imagecount; i++) {
+  //for (int i = 0; i < 5; i++) {
+    cout << "\r" << flush << "Extracting image " << (i + 1) << " of " << mhli.imagecount << ".." << endl;
 
     char no[9];
     sprintf (no, "%d", (i + 1)); // image number
@@ -184,13 +198,15 @@ int main (int argc, char *argv[]) {
                     source.write (image, size);
                     source.close ();
 
-                    outfile = outfile + "/big";
-                    mkdir (outfile.c_str(), 0755);
-                    outfile = outfile + "/" + no + ".bmp";
+                    if (convert) {
+                      outfile = outfile + "/big";
+                      mkdir (outfile.c_str(), 0755);
+                      outfile = outfile + "/" + no + ".bmp";
 
-                    YUV420 yuv (image, 720, 480, size, outfile);
-                    yuv.load ();
-                    yuv.write ();
+                      YUV420 yuv (image, 720, 480, size, outfile);
+                      yuv.load ();
+                      yuv.write ();
+                    }
                 }
                 break;
 
