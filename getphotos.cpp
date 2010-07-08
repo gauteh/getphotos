@@ -151,7 +151,7 @@ int main (int argc, char *argv[]) {
 
   for (int i = 0; i < mhli.imagecount; i++) {
   //for (int i = 0; i < 5; i++) {
-    cout << "\r" << flush << "Extracting image " << (i + 1) << " of " << mhli.imagecount << ".." << endl;
+    cout << "\r" << flush << "Extracting image " << (i + 1) << " of " << mhli.imagecount << "..";
 
     char no[9];
     sprintf (no, "%d", (i + 1)); // image number
@@ -216,6 +216,7 @@ int main (int argc, char *argv[]) {
       }
     }
   }
+  cout << "done." << endl;
 
   return 0;
 }
