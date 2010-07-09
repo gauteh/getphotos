@@ -9,10 +9,12 @@ Compile using 'scons':
 $ scons
 
 Make output dir:
-$ mkdir out 
+$ mkdir out
 
 Extract 720x480 YUV 4:2:0 images:
-$ ./getphotos /path/to/Photos out/
+$ ./getphotos -s /path/to/Photos out/
+
+-s = only extract sources, the only thing that makes sense right now.
 
 Open matlab, enter out/source/big
 run yuvtorgb.m (number of extracted files)
