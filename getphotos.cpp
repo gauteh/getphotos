@@ -17,17 +17,34 @@ using namespace std;
 void read_mhod (Mhod *, FILE *);
 void load_image (char *image, string inputfile, int offset, int size);
 
+void printhelp () {
+    cerr << "Usage: getphotos [-h|--help|-s] source destination\n"
+         << "       source          path to copy of Photos directory\n"
+         << "       destination     path where to store extracted images\n"
+         << "                       [Existing files will be overwritten]\n"
+         << "       -h or --help    display this help message\n"
+         << "       -s              only extract sources (yuv420, etc)\n"
+         << endl;
+}
+
 int main (int argc, char *argv[]) {
   cout << "GetPhotos " << VERSION << endl;
-  cout << "Warning: All existing photos in output directory will be deleted!" << endl;
+  cout << "Copyright Gaute Hope <eg@gaute.vetsj.com> and Åsmund Kjørstad (c) 2010" << endl << endl;
+  cout << "Warning: All existing photos in output directory will be overwritten!" << endl;
 
   if (argc < 3) {
-    cerr << "Usage: " << argv[0] << " [-s] [iPod photo directory] [output directory]" << endl;
-    cerr << "       -s    only extract source" << endl;
+    cerr << "Not enought arguments!" << endl;
+    printhelp ();
     exit (1);
   }
 
-  int convert = 1;
+  if (!strcmp (argv[1], "-h") || !strcmp(argv[1], "--help")) {
+    printhelp ();
+    exit (0);
+  }
+
+  int convert = 1; // attempt to create BMP files
+
   if (argc > 3) {
     if (!strcmp (argv[1], "-s")) {
       cout << "Only extracting sources." << endl;
@@ -35,6 +52,7 @@ int main (int argc, char *argv[]) {
       argv = &argv[1];
     } else {
       cerr << "Unknown argument!" << endl;
+      printhelp ();
       exit (1);
     }
   }
@@ -46,6 +64,7 @@ int main (int argc, char *argv[]) {
   // check for file
   if (access (photodb_u.c_str (), R_OK)) {
     cerr << "Could not access: " << photodb_u << endl;
+    printhelp ();
     exit (1);
   }
 
@@ -53,11 +72,19 @@ int main (int argc, char *argv[]) {
   struct stat statbuf;
   if (stat (outdir.c_str (), &statbuf) < 0) {
     cerr << "Invalid output directory." << endl;
+    printhelp ();
+    exit (1);
+  }
+
+  if (outdir[0] == '-' || datadir[0] == '-') {
+    cerr << "Invalid source or destination dir!" << endl;
+    printhelp ();
     exit (1);
   }
 
   if (!S_ISDIR (statbuf.st_mode)) {
     cerr << "Output not a directory." << endl;
+    printhelp ();
     exit (1);
   }
 
@@ -73,7 +100,7 @@ int main (int argc, char *argv[]) {
   cout << "Reading header..";
   Mhfd mhfd;
   fread (&mhfd, sizeof (mhfd), 1, photodb);
-  cout << "done. total length: " << mhfd.totallength << " bytes." << endl;
+  cout << "done, total length: " << mhfd.totallength << " bytes." << endl;
 
   // goto mhsd
   cout << "Reading image dataset..";
@@ -82,7 +109,7 @@ int main (int argc, char *argv[]) {
 
   Mhsd mhsd;
   fread (&mhsd, sizeof (mhsd), 1, photodb);
-  cout << "done. total length: " << mhsd.totallength << " bytes." << endl;
+  cout << "done, total length: " << mhsd.totallength << " bytes." << endl;
 
   if (mhsd.index != 1) {
     cerr << "mhsd.index=" << mhsd.index << ", should be 1 for images!";
@@ -95,7 +122,7 @@ int main (int argc, char *argv[]) {
   fseek (photodb, currenteoffset, SEEK_SET);
   Mhli mhli;
   fread (&mhli, sizeof (mhli), 1, photodb);
-  cout << "done. number of images: " << mhli.imagecount << endl;
+  cout << "done, number of images: " << mhli.imagecount << "." << endl;
 
   // loading images
   ImageItem *items = new ImageItem[mhli.imagecount];
@@ -104,6 +131,7 @@ int main (int argc, char *argv[]) {
 
   ImageItem *current = items;
 
+  cout << "Reading image db..";
   for (int loaded = 0; loaded < mhli.imagecount; loaded++) {
     //cout << "Loading image " << (loaded + 1) << " of " << mhli.imagecount;
 
@@ -119,10 +147,7 @@ int main (int argc, char *argv[]) {
 
     current->children = new ImageItemChild[current->image.childrencount];
 
-    // loading children
     for (int i = 0; i < current->image.childrencount; i++) {
-      //cout << "\r" << flush << "Loading " << (i + 1) << " of " << current->image.childrencount << " children.. current offset: " << currenteoffset;
-
       // read mhod header
       read_mhod (&(current->children[i].header), photodb);
       currenteoffset += current->children[i].header.headerlength;
@@ -130,14 +155,8 @@ int main (int argc, char *argv[]) {
 
       // read mhni
       fread (&(current->children[i].imagename), sizeof (Mhni), 1, photodb);
-
       currenteoffset += current->children[i].imagename.headerlength;
       fseek (photodb, currenteoffset, SEEK_SET);
-
-      /*
-      cout << "dimensions[" << i << "]: " << current->children[i].imagename.imagewidth << "x" << current->children[i].imagename.imageheight
-           << " (" << current->children[i].imagename.imagesize << ")" << endl;
-      */
 
       // read mhod name
       read_mhod (&(current->children[i].name), photodb);
@@ -148,7 +167,9 @@ int main (int argc, char *argv[]) {
   }
 
   fclose (photodb);
+  cout << "done." << endl;
 
+  int fullresinfo = 0;
   for (int i = 0; i < mhli.imagecount; i++) {
   //for (int i = 0; i < 5; i++) {
     cout << "\r" << flush << "Extracting image " << (i + 1) << " of " << mhli.imagecount << "..";
@@ -167,9 +188,10 @@ int main (int argc, char *argv[]) {
       string outfile = outdir;
 
       if (items[i].children[j].header.type == 5) {
-        // full res. 
-        cout << "Full resolution images found; check the Photos/Full resolution folder on your iPod." << endl;
-        //exit (1);
+        if (!fullresinfo) {
+          cout << "\r" << flush << "Good news: Possible full resolution images found; check the 'Photos/Full resolution' folder on your iPod." << endl;
+          fullresinfo = 1;
+        }
       } else {
         int size = items[i].children[j].imagename.imagesize;
         int offset = items[i].children[j].imagename.ithmboffset;
@@ -188,25 +210,25 @@ int main (int argc, char *argv[]) {
         switch (j) {
           case 0:
                 {
-                    char image[size];
-                    load_image (image, name, offset , size);
+                  char image[size];
+                  load_image (image, name, offset , size);
 
-                    string sourcef = sourcedir + "big";
-                    mkdir (sourcef.c_str(), 0755);
-                    sourcef = sourcef + "/" + no + ".yuv420";
-                    ofstream source (sourcef.c_str(), ios::binary | ios::trunc);
-                    source.write (image, size);
-                    source.close ();
+                  string sourcef = sourcedir + "big";
+                  mkdir (sourcef.c_str(), 0755);
+                  sourcef = sourcef + "/" + no + ".yuv420";
+                  ofstream source (sourcef.c_str(), ios::binary | ios::trunc);
+                  source.write (image, size);
+                  source.close ();
 
-                    if (convert) {
-                      outfile = outfile + "/big";
-                      mkdir (outfile.c_str(), 0755);
-                      outfile = outfile + "/" + no + ".bmp";
+                  if (convert) {
+                    outfile = outfile + "/big";
+                    mkdir (outfile.c_str(), 0755);
+                    outfile = outfile + "/" + no + ".bmp";
 
-                      YUV420 yuv (image, 720, 480, size, outfile);
-                      yuv.load ();
-                      yuv.write ();
-                    }
+                    YUV420 yuv (image, 720, 480, size, outfile);
+                    yuv.load ();
+                    yuv.write ();
+                  }
                 }
                 break;
 
@@ -230,7 +252,7 @@ void read_mhod (Mhod * mhod, FILE *photodb) {
 
     mhod->name = new char[mhod->stringsize + 1];
 
-    // probably wchar, we don't want that..
+    // probably wchar/unicode, we don't want that..
     for (int j = 0; j < mhod->stringsize; j++) {
       char t = fgetc (photodb);
       if (j % 2) mhod->name[j / 2] = t;
@@ -244,7 +266,6 @@ void read_mhod (Mhod * mhod, FILE *photodb) {
 
 void load_image (char *image, string inputfile, int offset, int size) {
   ifstream input (inputfile.c_str(), ifstream::binary);
-  //cout << "loading from: " << inputfile << ", offset=" << offset << ", size=" << size << endl;
   if (!input.is_open ()) {
       cout << "Could not open file: " << inputfile << " for reading!" << endl;
       exit (1);
