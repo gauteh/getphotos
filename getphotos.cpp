@@ -195,8 +195,8 @@ int main (int argc, char *argv[]) {
   cout << "done." << endl;
 
   int fullresinfo = 0;
-  //for (int i = 0; i < mhli.imagecount; i++) {
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < mhli.imagecount; i++) {
+    //for (int i = 0; i < 5; i++) {
     cout << "\r" << flush << "Extracting image " << (i + 1) << " of " << mhli.imagecount << "..";
 
     char no[9];
