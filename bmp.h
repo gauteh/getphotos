@@ -1,3 +1,5 @@
+// (Not) Used for writing common BMP stuff
+
 # pragma once
 # include <stdint.h>
 # include <fstream>
@@ -37,7 +39,7 @@ typedef struct {
 
 // returns header size, which should be offset = BMP_TOTAL_HEADER_SIZE
 int write_bmp_header (ofstream &out, int width, int height, int bpc) {
-    int size = width * height * bpc;
+    uint32_t size = width * height * 3;
 
     bmpfile_magic magic;
     magic.magic[0] = 'B';
@@ -47,7 +49,7 @@ int write_bmp_header (ofstream &out, int width, int height, int bpc) {
     header.filesz = BMP_TOTAL_HEADER_SIZE + size;
     header.creator1 = 0;
     header.creator2 = 0;
-    header.bmp_offset = 40;
+    header.bmp_offset = BMP_TOTAL_HEADER_SIZE;
 
     bmp_dib_v3_header_t dib;
     dib.header_sz = DIB_HEADER_SIZE;
@@ -58,8 +60,8 @@ int write_bmp_header (ofstream &out, int width, int height, int bpc) {
     dib.compress_type = BMP_COMPRESS_TYPE;
     dib.bmp_bytesz = size;
 
-    dib.hres = 2835;
-    dib.vres = 2835;
+    dib.hres = 0;
+    dib.vres = 0;
     dib.ncolors = 0;
     dib.nimpcolors = 0;
     out.write (reinterpret_cast<char*> (&magic), sizeof (magic));

@@ -1,3 +1,16 @@
+/* Copyright 2010 (c) Gaute Hope <eg@gaute.vetsj.com>
+ * Distributed under the GNU General Public Licence v3
+ *
+ * This is used to extract YUV 4:2:0 images from an 120 GB
+ * Video/Photo iPod.
+ *
+ * It could probably easily be adapted to similiar iPods.
+ *
+ * It does not (yet) convert the images to BMP format; use the Matlab
+ * script by Åsmund Kjørstad for that.
+ *
+ */
+
 # include <iostream>
 # include <fstream>
 # include <stdlib.h>
@@ -7,8 +20,13 @@
 # include <cstring>
 
 # include "dataobjects.h"
+
+/* An attempt to implement YUV 4:2:0 conversion in C++
+
 # include "bmp.h"
 # include "yuv420.h"
+
+*/
 
 using namespace std;
 
@@ -55,6 +73,13 @@ int main (int argc, char *argv[]) {
       printhelp ();
       exit (1);
     }
+  }
+
+  // .. and likely for ever..
+  if (convert) {
+    cerr << "The only thing that works right now is to extract sources; please specify '-s'" << endl;
+    printhelp ();
+    exit (1);
   }
 
   string datadir = string (argv[1]);
@@ -170,8 +195,8 @@ int main (int argc, char *argv[]) {
   cout << "done." << endl;
 
   int fullresinfo = 0;
-  for (int i = 0; i < mhli.imagecount; i++) {
-  //for (int i = 0; i < 5; i++) {
+  //for (int i = 0; i < mhli.imagecount; i++) {
+  for (int i = 0; i < 5; i++) {
     cout << "\r" << flush << "Extracting image " << (i + 1) << " of " << mhli.imagecount << "..";
 
     char no[9];
@@ -220,6 +245,7 @@ int main (int argc, char *argv[]) {
                   source.write (image, size);
                   source.close ();
 
+                  /*
                   if (convert) {
                     outfile = outfile + "/big";
                     mkdir (outfile.c_str(), 0755);
@@ -229,6 +255,7 @@ int main (int argc, char *argv[]) {
                     yuv.load ();
                     yuv.write ();
                   }
+                  */
                 }
                 break;
 
@@ -259,9 +286,8 @@ void read_mhod (Mhod * mhod, FILE *photodb) {
     }
 
     mhod->name[mhod->stringsize] = '\0';
-  } else {
-    mhod->totallength = 0x18;
-  }
+
+  } else mhod->totallength = 0x18;
 }
 
 void load_image (char *image, string inputfile, int offset, int size) {

@@ -1,4 +1,7 @@
-/* data objects; database, sets, albums and photo information
+/* data objects; database, sets, albums and photo information for reading
+ * the Photo Database.
+ *
+ * Not necessarily correct, but works on i686, low-endian :p
  *
  * based on: http://www.ipodlinux.org/wiki/ITunesDB#Photo_Database
  * for 5G photo ipods or compatible
@@ -97,9 +100,9 @@ typedef struct _Mhod {
 
   // type 5 and 2 stops here.
 
-  // size of following string, either 42 (for thumbs) or 
+  // size of following string, either 42 (for thumbs) or
   // some other for full resolutions
-  int stringsize;               // offset = 23, size = 4 
+  int stringsize;               // offset = 23, size = 4
 
   /*int unknown4;                 // offset = 27, size = 4 */
   /*int unknown5;                 // offset = 31, size = 4*/
@@ -149,4 +152,5 @@ typedef struct _ImageItem {
 } ImageItem;
 
 // Album list
+// never got that far..
 

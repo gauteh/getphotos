@@ -3,7 +3,7 @@ Used to restore photos on an 120gb video iPod.
 You need: Matlab, scons/c++ compiler
 
 Copy Photos folder somewhere and use as source (don't risk running
-directly on iPod).
+directly on iPod), but there are no guarantees for anything anyway.
 
 Compile using 'scons':
 $ scons
@@ -15,11 +15,13 @@ Extract 720x480 YUV 4:2:0 images:
 $ ./getphotos -s /path/to/Photos out/
 
 -s = only extract sources, the only thing that makes sense right now.
+-h = show usage / help
 
-Open matlab, enter out/source/big
-run yuvtorgb.m (number of extracted files)
+In matlab, cd out/source/big run yuvtorgb.m (number of extracted files), it
+will iterate from 1 to the number you specify and convert the files to BMP,
+you can easily modify the script to output JPG's or other if you wish.
 
-bmp files should end up in out/ dir
+BMP files should end up in out/ dir
 
 License: GPLv3
 Authors: Gaute Hope and Åsmund Kjørstad
